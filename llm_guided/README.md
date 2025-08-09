@@ -1,32 +1,36 @@
 # LLM-Guided Optuna
 
-Large Language Model guided hyperparameter optimization for Optuna.
+> Large Language Model guided hyperparameter optimization for Optuna
 
 ## Overview
 
-This project extends Optuna with LLM-guided sampling capabilities, allowing hyperparameter optimization to leverage domain knowledge and pattern recognition capabilities of Large Language Models. Instead of relying purely on mathematical optimization algorithms, we combine Optuna's systematic approach with LLM domain knowledge from vast ML literature and successful configurations.
+LLM-Guided Optuna extends Optuna with intelligent hyperparameter suggestions powered by Large Language Models. Instead of purely mathematical optimization, it combines Optuna's systematic approach with LLM domain knowledge to make smarter parameter choices.
 
 ## Key Features
 
-- **Trial-Level LLM Guidance**: LLMs suggest complete hyperparameter configurations by reasoning about parameter relationships and optimization history
-- **Fresh Context Awareness**: Each trial gets updated context from optimization progress
-- **Structured Output Parsing**: Reliable parameter extraction using Pydantic models and LiteLLM
-- **Robust Error Handling**: Graceful fallbacks and parameter validation
-- **Drop-in Compatibility**: Works as a standard Optuna sampler
+- 🧠 **Intelligent Parameter Suggestions**: LLMs analyze optimization context and suggest complete configurations
+- 📊 **Rich Context Awareness**: Incorporates trial history, trends, and domain knowledge  
+- 🔒 **Robust Validation**: Ensures all suggestions fit within search space constraints
+- 🔄 **Graceful Fallbacks**: Handles LLM failures transparently
+- 🎯 **Drop-in Compatibility**: Works as a standard Optuna sampler
 
 ## Quick Start
 
 ### Installation
 
 ```bash
+# Install dependencies
 pip install -r requirements.txt
+
+# Set your LLM API key (example with OpenAI)
+export OPENAI_API_KEY="your-api-key-here"
 ```
 
 ### Basic Usage
 
 ```python
 import optuna
-from llm_guided_optuna import LLMGuidedSampler
+from src.sampler import LLMGuidedSampler
 
 # Create LLM-guided sampler
 sampler = LLMGuidedSampler(
@@ -34,176 +38,98 @@ sampler = LLMGuidedSampler(
     temperature=0.3
 )
 
-# Create study with LLM sampler
-study = optuna.create_study(
-    direction="minimize", 
-    sampler=sampler
-)
-
-# Add problem context for better guidance
+# Create study with rich context for better LLM guidance
+study = optuna.create_study(direction="minimize", sampler=sampler)
 study.set_user_attr("problem_type", "neural_network_training")
-study.set_user_attr("problem_description", "CNN optimization for image classification")
+study.set_user_attr("problem_description", "CNN optimization for CIFAR-10")
 
-# Define objective function
 def objective(trial):
     lr = trial.suggest_float("learning_rate", 1e-5, 1e-1, log=True)
-    batch_size = trial.suggest_int("batch_size", 16, 256, step=16)
+    batch_size = trial.suggest_int("batch_size", 16, 128, step=16)
     dropout = trial.suggest_float("dropout", 0.0, 0.5)
     
     # Your model training code here
-    accuracy = train_model(lr, batch_size, dropout)
-    return 1.0 - accuracy  # Minimize error
+    return validation_loss
 
-# Run optimization
-study.optimize(objective, n_trials=50)
+# Run optimization - each trial queries the LLM!
+study.optimize(objective, n_trials=20)
 ```
 
-### Configuration Options
+## How It Works
 
-```python
-sampler = LLMGuidedSampler(
-    model="gpt-4o-2024-08-06",    # LLM model to use
-    temperature=0.3,               # Sampling temperature (0=deterministic, 1=creative)
-    timeout=30,                    # API timeout in seconds
-    max_retries=3,                 # Retry attempts for failed requests
-    max_context_trials=10          # Max trials to include in LLM context
-)
+1. **Context Building**: Extracts optimization history, progress trends, and search space
+2. **LLM Querying**: Sends rich context to LLM requesting intelligent parameter suggestions
+3. **Response Parsing**: Validates LLM responses using structured Pydantic models
+4. **Parameter Validation**: Clamps suggestions to search space bounds with fallbacks
+5. **Trial Execution**: Returns validated parameters to Optuna for objective evaluation
+
+## Testing & Demos
+
+### 🔍 Complete System Examination
+```bash
+python examples/examine_this.py  # Detailed walkthrough of every component
+```
+
+### Core Functionality Demo
+```bash
+python demo.py  # Shows all components working (no API key needed)
+```
+
+### Import Tests
+```bash
+python -m pytest tests/test_imports.py -v  # All 6 tests should pass
+```
+
+### With Real LLM
+```bash
+export OPENAI_API_KEY="your-key"
+python real_llm_demo.py  # Full optimization with actual LLM
+```
+
+## Project Structure
+
+```
+llm_guided/
+├── src/                    # Core implementation
+│   ├── sampler.py         # Main LLMGuidedSampler
+│   ├── llm_client.py      # LLM communication
+│   ├── context_builder.py # Optimization context extraction
+│   ├── models.py          # Pydantic data models
+│   └── parameter_validator.py # Parameter validation
+├── tests/                 # Test suite
+│   ├── test_imports.py    # Import verification (✅ all pass)
+│   └── test_basic_functionality.py # Unit tests
+├── examples/              # Usage examples
+├── docs/                  # Detailed documentation
+└── demo.py               # Interactive demonstration
 ```
 
 ## Architecture
 
-The system consists of several key components:
+- **Trial-Level Generation**: LLM suggests complete parameter configurations (not individual parameters)
+- **Fresh Context**: Rebuilds optimization context from study state each trial
+- **No Traditional Fallback**: Pure LLM-guided approach with intelligent error recovery
+- **Structured Communication**: Uses LiteLLM + Pydantic for reliable LLM interaction
 
-### 1. LLMGuidedSampler
-Main integration with Optuna's sampler interface. Generates complete trial configurations using LLM reasoning.
+## Documentation
 
-### 2. Context Builder
-Extracts and formats optimization context from Optuna study state, including:
-- Search space definition
-- Trial history and trends  
-- Best results so far
-- Optimization progress analysis
-- Problem-specific context
+- [How It Works](docs/how-it-works.md) - Detailed system architecture
+- [Usage Guide](docs/usage-guide.md) - Comprehensive usage examples
+- [API Reference](docs/api-reference.md) - Complete API documentation
 
-### 3. LLM Client
-Handles structured communication with LLMs using LiteLLM and Pydantic:
-- Robust error handling and retries
-- Structured output parsing
-- Multiple model provider support
+## Current Status
 
-### 4. Parameter Validator
-Ensures LLM suggestions conform to search space constraints:
-- Bounds checking and clamping
-- Type conversion and validation
-- Fallback value generation
-
-## Advanced Usage
-
-### Adding Domain Knowledge
-
-```python
-study.set_user_attr("problem_type", "neural_network_training")
-study.set_user_attr("problem_description", "ResNet-18 training on CIFAR-10")
-study.set_user_attr("constraints", [
-    "training_time < 2 hours",
-    "memory_usage < 8GB"
-])
-study.set_user_attr("domain_knowledge", {
-    "dataset": "CIFAR-10",
-    "model_architecture": "ResNet-18", 
-    "expected_accuracy": "85-92%"
-})
-```
-
-### Performance Monitoring
-
-```python
-# Get comprehensive statistics
-stats = sampler.get_statistics()
-
-print(f"Success rate: {stats['sampler_stats']['success_rate']:.2%}")
-print(f"Average LLM time: {stats['sampler_stats']['average_llm_time']:.2f}s")
-print(f"Fallback uses: {stats['sampler_stats']['fallback_uses']}")
-```
-
-## Examples
-
-- `examples/basic_usage.py`: Simple neural network hyperparameter optimization
-- `examples/advanced_usage.py`: Advanced features and domain knowledge integration
-- `examples/comparison_study.py`: Comparison with traditional Optuna samplers
-
-## Testing
-
-Run the test suite:
-
-```bash
-python -m pytest tests/ -v
-```
-
-Or run basic functionality tests:
-
-```bash
-cd tests && python test_basic_functionality.py
-```
-
-## Design Documents
-
-Comprehensive design documentation is available in the project:
-
-- `00_project_overview.md`: High-level project vision and architecture
-- `01_mathematical_foundations.md`: Mathematical theory for distribution combination
-- `02_llm_integration_strategies.md`: LLM interaction patterns and best practices  
-- `03_implementation_architecture.md`: Detailed implementation design
-- `04_structured_output_design.md`: Pydantic models and parsing strategy
-- `05_context_building_strategy.md`: Context extraction and formatting
-
-## Key Benefits
-
-1. **Faster Convergence**: Reduce trials needed by starting with educated guesses
-2. **Better Solutions**: Leverage LLM domain knowledge to find superior configurations
-3. **Parameter Relationships**: LLMs understand complex parameter interactions
-4. **Adaptive Strategy**: Optimization approach adapts based on progress and trends
-
-## Supported Models
-
-Works with any model supported by LiteLLM:
-- OpenAI: GPT-4, GPT-4o, GPT-3.5
-- Anthropic: Claude-3, Claude-3.5 
-- Google: Gemini Pro, Gemini Flash
-- Local models via Ollama, LM Studio
-- Many others via LiteLLM
-
-## Requirements
-
-- Python 3.8+
-- optuna>=3.0.0
-- litellm>=1.0.0
-- pydantic>=2.0.0
-- numpy, scipy, scikit-learn
+✅ **Working**: All core components, imports, context building, validation  
+✅ **Tested**: Import tests passing, demo functional  
+⚠️ **Known Issue**: First trial initialization (common Optuna sampler pattern)  
 
 ## Contributing
 
-This project follows XP programming principles with focus on:
-- Test-driven development
-- Clean, simple code
-- Continuous refactoring
-- Fast iteration cycles
-
-See `CONTRIBUTING.md` for guidelines.
+This implementation follows Optuna's coding standards:
+- Code formatted with `black --line-length 99`
+- Imports sorted with `isort --profile black`
+- Tests run with `pytest`
 
 ## License
 
-MIT License - see `LICENSE` file for details.
-
-## Citation
-
-If you use this work in academic research, please cite:
-
-```bibtex
-@software{llm_guided_optuna,
-  title={LLM-Guided Optuna: Large Language Model Guided Hyperparameter Optimization},
-  author={Your Name},
-  year={2024},
-  url={https://github.com/your-repo/llm-guided-optuna}
-}
-```
+MIT License - See main Optuna repository for details.
