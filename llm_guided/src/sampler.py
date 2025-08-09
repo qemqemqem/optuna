@@ -12,13 +12,22 @@ from typing import Dict
 from typing import Optional
 from typing import Sequence
 
-from context_builder import ContextBuilder
-from llm_client import LLMClient
-from llm_client import LLMError
-from models import TrialConfiguration
-from parameter_validator import ErrorRecoveryHandler
-from parameter_validator import ParameterValidator
-from parameter_validator import ValidationError
+try:
+    from .context_builder import ContextBuilder
+    from .llm_client import LLMClient
+    from .llm_client import LLMError
+    from .models import TrialConfiguration
+    from .parameter_validator import ErrorRecoveryHandler
+    from .parameter_validator import ParameterValidator
+    from .parameter_validator import ValidationError
+except ImportError:
+    from context_builder import ContextBuilder
+    from llm_client import LLMClient
+    from llm_client import LLMError
+    from models import TrialConfiguration
+    from parameter_validator import ErrorRecoveryHandler
+    from parameter_validator import ParameterValidator
+    from parameter_validator import ValidationError
 
 import optuna
 from optuna.samplers import BaseSampler
@@ -125,6 +134,7 @@ class LLMGuidedSampler(BaseSampler):
             try:
                 # Generate complete trial configuration
                 config = self._generate_complete_trial_configuration(study, trial)
+                logger.debug(f"Setting cache for trial {trial.number} with keys: {list(config.keys())}")
                 trial._llm_config_cache = config
 
                 # Update timing stats
@@ -143,9 +153,10 @@ class LLMGuidedSampler(BaseSampler):
 
         # Return cached parameter value
         config = trial._llm_config_cache
+        logger.debug(f"Looking for '{param_name}' in cached config: {list(config.keys())}")
         if param_name not in config:
             raise LLMSamplingError(
-                f"Parameter '{param_name}' not found in generated configuration"
+                f"Parameter '{param_name}' not found in generated configuration. Available: {list(config.keys())}"
             )
 
         return config[param_name]
@@ -161,30 +172,49 @@ class LLMGuidedSampler(BaseSampler):
             # Build optimization context
             context = self.context_builder.build_context(study)
 
+            # Get search space from trials - use the last COMPLETED trial
+            trials = study.trials
+            completed_trials = [t for t in trials if t.state == optuna.trial.TrialState.COMPLETE]
+            logger.debug(f"Found {len(trials)} total trials, {len(completed_trials)} completed")
+            
+            if completed_trials:
+                last_completed = completed_trials[-1]
+                logger.debug(f"Last completed trial has {len(last_completed.distributions)} distributions")
+                logger.debug(f"Last completed trial distributions keys: {list(last_completed.distributions.keys())}")
+                search_space = last_completed.distributions
+            else:
+                search_space = {}
+            logger.debug(f"Final search_space has {len(search_space)} parameters: {list(search_space.keys())}")
+            
             # Initialize error recovery handler
-            recovery_handler = ErrorRecoveryHandler(study.search_space)
+            recovery_handler = ErrorRecoveryHandler(search_space)
 
             try:
                 # Query LLM for configuration
                 llm_response = self.llm_client.generate_trial_configuration(context)
 
                 # Validate and clamp parameters
+                logger.debug(f"About to validate config with keys: {list(llm_response.parameters.keys())}")
+                logger.debug(f"Search space keys: {list(search_space.keys())}")
                 validated_config = self.validator.validate_and_clamp_configuration(
-                    llm_response, study.search_space
+                    llm_response, search_space
                 )
 
                 logger.info(f"Generated configuration: {llm_response.reasoning}")
+                logger.debug(f"Validated config keys: {list(validated_config.keys())}")
                 return validated_config
 
             except ValidationError as e:
                 # Try error recovery
                 logger.warning(f"Validation failed, attempting recovery: {e}")
+                import traceback
+                logger.debug(f"Validation traceback: {traceback.format_exc()}")
                 try:
                     recovered_config = recovery_handler.handle_validation_error(
                         str(llm_response), e
                     )
                     validated_config = self.validator.validate_and_clamp_configuration(
-                        recovered_config, study.search_space
+                        recovered_config, search_space
                     )
                     self.stats["validation_fixes"] += 1
                     return validated_config
@@ -193,33 +223,19 @@ class LLMGuidedSampler(BaseSampler):
                     raise
 
             except LLMError as e:
-                # LLM generation failed - use fallback
+                # LLM generation failed - FAIL FAST
                 logger.error(f"LLM generation failed: {e}")
-                fallback_config = self._generate_fallback_configuration(study)
-                self.stats["fallback_uses"] += 1
-                return fallback_config
+                import traceback
+                logger.debug(f"LLM error traceback: {traceback.format_exc()}")
+                raise LLMSamplingError(f"LLM generation failed completely: {e}")
 
         except Exception as e:
             logger.error(f"Complete configuration generation failed: {e}")
-            # Last resort: generate fallback
-            fallback_config = self._generate_fallback_configuration(study)
-            self.stats["fallback_uses"] += 1
-            return fallback_config
+            import traceback
+            logger.debug(f"Complete generation traceback: {traceback.format_exc()}")
+            # FAIL FAST - no fallbacks
+            raise LLMSamplingError(f"Configuration generation failed completely: {e}")
 
-    def _generate_fallback_configuration(self, study: optuna.Study) -> Dict[str, Any]:
-        """Generate fallback configuration when LLM fails."""
-
-        logger.warning("Generating fallback configuration due to LLM failure")
-
-        config = {}
-        # Get search space from completed trials
-        trials = study.get_trials()
-        if trials:
-            search_space = trials[-1].distributions
-            for param_name, distribution in search_space.items():
-                config[param_name] = self.validator._get_default_value(distribution)
-
-        return config
 
     def _update_timing_stats(self, generation_time: float) -> None:
         """Update timing statistics."""
@@ -240,12 +256,13 @@ class LLMGuidedSampler(BaseSampler):
         This method is called by Optuna to determine the search space for a trial.
         We return the complete study search space since we generate full configurations.
         """
-        # Get search space from completed trials' distributions
-        trials = study.get_trials()
-        if trials:
-            return trials[-1].distributions
+        # Get search space from completed trials' distributions  
+        trials = study.get_trials() if hasattr(study, 'get_trials') else study.trials
+        completed_trials = [t for t in trials if t.state == optuna.trial.TrialState.COMPLETE]
+        if completed_trials:
+            return completed_trials[-1].distributions
         else:
-            # No trials yet, return empty search space
+            # No completed trials yet, return empty search space
             return {}
 
     def sample_relative(

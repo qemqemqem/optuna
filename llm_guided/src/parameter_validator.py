@@ -13,7 +13,10 @@ from typing import Dict
 from typing import Optional
 from typing import Union
 
-from models import TrialConfiguration
+try:
+    from .models import TrialConfiguration
+except ImportError:
+    from models import TrialConfiguration
 
 import optuna
 

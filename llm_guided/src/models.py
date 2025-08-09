@@ -55,37 +55,11 @@ class TrialConfiguration(BaseModel):
     hyperparameter configurations.
     """
 
-    parameters: Dict[str, Union[float, int, str, bool]] = Field(
-        description="Complete hyperparameter configuration mapping parameter names to values",
-        example={"learning_rate": 0.001, "batch_size": 32, "dropout": 0.3, "optimizer": "adam"},
-    )
-
-    reasoning: str = Field(
-        description="Brief explanation (1-3 sentences) of why these parameters were chosen",
-        min_length=10,
-        max_length=500,
-        example="Chose moderate learning rate for stable training, smaller batch size for better gradient estimates, and moderate dropout to prevent overfitting.",
-    )
-
-    confidence: Optional[float] = Field(
-        default=None,
-        description="Confidence level in this configuration (0.0 to 1.0)",
-        ge=0.0,
-        le=1.0,
-        example=0.75,
-    )
-
-    strategy: Optional[ExplorationStrategy] = Field(
-        default=ExplorationStrategy.BALANCED,
-        description="Whether this configuration is conservative, balanced, or aggressive",
-    )
-
-    expected_performance: Optional[str] = Field(
-        default=None,
-        description="Brief prediction of expected performance",
-        max_length=200,
-        example="Expected to achieve 85-90% validation accuracy with moderate training time",
-    )
+    parameters: Dict[str, Union[float, int, str, bool]]
+    reasoning: str 
+    confidence: float
+    strategy: str
+    expected_performance: str
 
     @field_validator("parameters")
     @classmethod

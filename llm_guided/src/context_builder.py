@@ -13,14 +13,24 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from models import create_search_space_parameter
-from models import create_trial_result
-from models import OptimizationContext
-from models import OptimizationStage
-from models import ProgressAnalysis
-from models import SearchSpaceParameter
-from models import TrendType
-from models import TrialResult
+try:
+    from .models import create_search_space_parameter
+    from .models import create_trial_result
+    from .models import OptimizationContext
+    from .models import OptimizationStage
+    from .models import ProgressAnalysis
+    from .models import SearchSpaceParameter
+    from .models import TrendType
+    from .models import TrialResult
+except ImportError:
+    from models import create_search_space_parameter
+    from models import create_trial_result
+    from models import OptimizationContext
+    from models import OptimizationStage
+    from models import ProgressAnalysis
+    from models import SearchSpaceParameter
+    from models import TrendType
+    from models import TrialResult
 import numpy as np
 
 import optuna
@@ -117,10 +127,11 @@ class ContextBuilder:
 
         # Get search space from completed trials' distributions
         search_space = {}
-        trials = study.get_trials()
-        if trials:
-            # Use the most recent trial's distributions as the search space
-            search_space = trials[-1].distributions
+        trials = study.get_trials() if hasattr(study, 'get_trials') else study.trials
+        completed_trials = [t for t in trials if t.state == optuna.trial.TrialState.COMPLETE]
+        if completed_trials:
+            # Use the most recent completed trial's distributions as the search space
+            search_space = completed_trials[-1].distributions
 
         for param_name, distribution in search_space.items():
             description = self.parameter_descriptions.get(param_name.lower())

@@ -15,8 +15,12 @@ from typing import Type
 from typing import TypeVar
 
 import litellm
-from models import OptimizationContext
-from models import TrialConfiguration
+try:
+    from .models import OptimizationContext
+    from .models import TrialConfiguration
+except ImportError:
+    from models import OptimizationContext
+    from models import TrialConfiguration
 from pydantic import BaseModel
 
 
@@ -129,13 +133,18 @@ class LLMClient:
                 response = litellm.completion(
                     model=self.model,
                     messages=[{"role": "user", "content": prompt}],
-                    response_format=response_model,
+                    response_format={"type": "json_object"},
                     temperature=effective_temperature,
                     timeout=self.timeout,
                 )
 
-                # Extract structured response
-                structured_response = response.choices[0].message.content
+                # Extract and parse JSON response
+                json_content = response.choices[0].message.content
+                
+                # Parse JSON and create Pydantic model
+                import json
+                parsed_json = json.loads(json_content)
+                structured_response = response_model(**parsed_json)
 
                 # Additional validation
                 self._validate_response(structured_response, response_model)
