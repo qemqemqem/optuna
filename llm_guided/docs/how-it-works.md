@@ -147,6 +147,30 @@ Tracks success rates, timing, fallback usage, and validation statistics.
 | **Latency** | <1ms | 1-5s |
 | **Cost** | Free | API costs |
 
+## Real-World Example: Lightning Rod Optimization
+
+The system's capabilities are demonstrated through a geometric optimization problem:
+
+**Problem**: Place 3-5 lightning rods optimally around a 100m×80m facility to minimize maximum unprotected distance.
+
+**Constraints**:
+- Lightning rods have 45m protection radius
+- Cannot place within 10m of buildings
+- Cannot place within 15m of each other
+- Must be 5m from facility edges
+- $5,000 per rod, $25,000 total budget
+
+**LLM Context Includes**:
+- Facility layout with building positions
+- Protection physics and coverage calculations
+- Geometric optimization strategies
+- Domain knowledge about efficient arrangements
+
+**Example LLM Reasoning**:
+> "For 4 rods, I'll use a diamond formation avoiding the central building cluster. Positioning rods at (25, 20), (75, 20), (50, 60), (25, 65) creates overlapping coverage while respecting building clearances and maximizing edge protection."
+
+**Why This Works**: The LLM leverages geometric intuition and domain knowledge impossible to encode in traditional mathematical samplers.
+
 ## Extensions and Future Work
 
 **Ensemble Methods**: Combine multiple LLM suggestions

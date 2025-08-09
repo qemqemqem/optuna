@@ -65,6 +65,13 @@ study.optimize(objective, n_trials=20)
 
 ## Testing & Demos
 
+### ⚡ **Lightning Rod Optimization** (Recommended!)
+```bash
+export OPENAI_API_KEY="your-key"
+python examples/lightning_rod_optimization.py
+```
+A geometric optimization problem that showcases LLM-guided optimization on a real-world scenario: placing lightning rods optimally around a facility to minimize unprotected areas. Non-ML example with complex constraints and no analytical solution.
+
 ### 🔍 Complete System Examination
 ```bash
 python examples/examine_this.py  # Detailed walkthrough of every component
@@ -78,12 +85,6 @@ python demo.py  # Shows all components working (no API key needed)
 ### Import Tests
 ```bash
 python -m pytest tests/test_imports.py -v  # All 6 tests should pass
-```
-
-### With Real LLM
-```bash
-export OPENAI_API_KEY="your-key"
-python real_llm_demo.py  # Full optimization with actual LLM
 ```
 
 ## Project Structure

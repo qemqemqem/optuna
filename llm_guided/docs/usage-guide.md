@@ -131,6 +131,20 @@ sampler = LLMGuidedSampler(
 
 ## Problem-Specific Examples
 
+### ⚡ Lightning Rod Optimization (Geometric)
+```python
+# Real-world geometric optimization example
+OPENAI_API_KEY="your-key" python examples/lightning_rod_optimization.py
+
+# With full LLM response debugging
+python examples/lightning_rod_optimization.py --show-full-llm
+
+# Different models and trial counts
+python examples/lightning_rod_optimization.py --model gpt-4o-mini --trials 10
+```
+
+This example demonstrates LLM-guided optimization on a complex geometric problem: placing lightning rods optimally around a facility to minimize unprotected areas. Features complex constraints, domain knowledge injection, and no analytical solution.
+
 ### Computer Vision
 ```python
 study.set_user_attr("problem_type", "computer_vision")
